@@ -99,7 +99,7 @@ def main(config_path: str) -> None:
     loss_fn = InfoNCELoss(temperature=cfg["alignment"]["temperature"])
 
     trainer = EncoderTrainer(encoder, proj_head, loss_fn, cfg, device)
-    ckpt_dir = cfg["checkpoint_dir"] + "encoder/"
+    ckpt_dir = str(Path(cfg["encoder"]["checkpoint_path"]).parent)
 
     print("Starting contrastive training...")
     trainer.fit(train_loader, val_loader, ckpt_dir)
