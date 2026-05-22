@@ -8,6 +8,18 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import Optional
 
 
+class _HiddenStateExtractor(nn.Module):
+    """Thin wrapper so DataParallel receives and returns plain tensors."""
+
+    def __init__(self, model: nn.Module) -> None:
+        super().__init__()
+        self.model = model
+
+    def forward(self, inputs_embeds: torch.Tensor) -> torch.Tensor:
+        outputs = self.model(inputs_embeds=inputs_embeds, output_hidden_states=True)
+        return outputs.hidden_states[-1][:, 0, :]   # (B, hidden_dim)
+
+
 class FrozenLLM(nn.Module):
     """
     Loads a causal LLM, freezes all parameters, and exposes hidden state extraction.
@@ -33,13 +45,19 @@ class FrozenLLM(nn.Module):
         )
         self.model.to(_device)
 
-        # Freeze everything — verified below
         for param in self.model.parameters():
             param.requires_grad = False
         self.model.eval()
 
         assert not any(p.requires_grad for p in self.model.parameters()), \
             "LLM has unfrozen parameters — abort."
+
+        extractor = _HiddenStateExtractor(self.model)
+        if torch.cuda.device_count() > 1:
+            print(f"FrozenLLM: using {torch.cuda.device_count()} GPUs (DataParallel)")
+            self._extractor: nn.Module = nn.DataParallel(extractor)
+        else:
+            self._extractor = extractor
 
     @classmethod
     def from_config(cls, cfg: dict) -> "FrozenLLM":
@@ -52,17 +70,7 @@ class FrozenLLM(nn.Module):
 
     @torch.no_grad()
     def get_hidden_state(self, inputs_embeds: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass with pre-computed embeddings; return last-layer CLS hidden state.
-
-        Args:
-            inputs_embeds: (B, seq_len, hidden_dim) — soft_prompt + ts_embed concat
-        Returns:
-            (B, hidden_dim) — last hidden state at position 0 (CLS)
-        """
-        outputs = self.model(inputs_embeds=inputs_embeds, output_hidden_states=True)
-        last_hidden = outputs.hidden_states[-1]   # (B, seq_len, D)
-        return last_hidden[:, 0, :]               # (B, D) — CLS position
+        return self._extractor(inputs_embeds)   # (B, hidden_dim)
 
     def get_input_embeddings(self) -> nn.Embedding:
         """Return the model's token embedding layer (for soft-prompt init reference)."""
