@@ -58,7 +58,7 @@ encoder:
 
 alignment:
   temperature: 0.07       # InfoNCE temperature
-  projection_dim: 768     # project TS embed up to LLM hidden dim
+  projection_dim: 1024    # must match llm.hidden_dim (gpt2-medium = 1024)
   n_regimes: 5
   regime_labels:
     - "TRENDING_UP"
@@ -79,9 +79,9 @@ encoder_training:
   val_every: 1            # validate every N epochs
 
 llm:
-  model_name: "gpt2-medium"   # 345M params, 768 hidden dim
+  model_name: "gpt2-medium"   # 345M params, 1024 hidden dim
   # alternative: "meta-llama/Llama-3.2-1B" if VRAM >= 16GB
-  hidden_dim: 768
+  hidden_dim: 1024
   freeze_all: true
   hidden_state_layer: -1      # last layer
   hidden_state_position: 0    # CLS token (first position)
@@ -89,7 +89,7 @@ llm:
 
 soft_prompt:
   n_tokens: 32
-  token_dim: 768              # must match llm.hidden_dim
+  token_dim: 1024             # must match llm.hidden_dim
   init_std: 0.01
   checkpoint_path: "checkpoints/soft_prompt/best_soft_prompt.npy"
 
@@ -103,7 +103,7 @@ cmaes:
   eval_batch_size: 32
 
 prediction_head:
-  input_dim: 768              # must match llm.hidden_dim
+  input_dim: 1024             # must match llm.hidden_dim
   hidden_dim: 256
   output_steps: 8             # predict 8 × 30min = 4 hours ahead
   dropout: 0.1
