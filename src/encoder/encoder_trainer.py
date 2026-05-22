@@ -47,14 +47,22 @@ class EncoderTrainer:
 
     def __init__(self, encoder: TSEncoder, proj_head: ProjectionHead,
                  loss_fn: InfoNCELoss, cfg: dict, device: torch.device) -> None:
-        self.encoder = encoder.to(device)
-        self.proj_head = proj_head.to(device)
+        self._encoder_raw = encoder.to(device)
+        self._proj_raw = proj_head.to(device)
         self.loss_fn = loss_fn
         self.cfg = cfg
         self.device = device
 
+        if torch.cuda.device_count() > 1:
+            print(f"Using {torch.cuda.device_count()} GPUs (DataParallel)")
+            self.encoder = nn.DataParallel(self._encoder_raw)
+            self.proj_head = nn.DataParallel(self._proj_raw)
+        else:
+            self.encoder = self._encoder_raw
+            self.proj_head = self._proj_raw
+
         tc = cfg["encoder_training"]
-        params = list(encoder.parameters()) + list(proj_head.parameters())
+        params = list(self._encoder_raw.parameters()) + list(self._proj_raw.parameters())
         self.optimizer = optim.AdamW(params, lr=tc["lr"], weight_decay=tc["weight_decay"])
 
         total_steps = tc["epochs"] * 1000  # rough estimate; updated at train time
@@ -81,7 +89,7 @@ class EncoderTrainer:
             self.optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm_(
-                list(self.encoder.parameters()) + list(self.proj_head.parameters()), 1.0
+                list(self._encoder_raw.parameters()) + list(self._proj_raw.parameters()), 1.0
             )
             self.optimizer.step()
             self.scheduler.step()
@@ -119,7 +127,7 @@ class EncoderTrainer:
                 if val_loss < self.best_val_loss:
                     self.best_val_loss = val_loss
                     self.patience_counter = 0
-                    save_encoder(self.encoder, self.proj_head, str(ckpt_path))
+                    save_encoder(self._encoder_raw, self._proj_raw, str(ckpt_path))
                 else:
                     self.patience_counter += 1
                     if self.patience_counter >= self.patience:

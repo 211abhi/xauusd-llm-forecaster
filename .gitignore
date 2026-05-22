@@ -15,12 +15,14 @@ data/
 *.pickle
 
 # ── Checkpoints & Model Weights ───────────────────────────────
-checkpoints/
+checkpoints/soft_prompt/
+checkpoints/pred_head/
 *.pt
 *.pth
 *.ckpt
 *.npy
 *.npz
+!checkpoints/encoder/best_encoder.pt
 
 # ── Logs ──────────────────────────────────────────────────────
 logs/

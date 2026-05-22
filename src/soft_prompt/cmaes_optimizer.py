@@ -29,8 +29,13 @@ class CMAESOptimizer:
         self.soft_prompt = soft_prompt.to(device)
         self.encoder = encoder.to(device)
         self.llm = llm
-        self.pred_head = pred_head.to(device)
         self.proj_head = proj_head.to(device)
+        pred_head = pred_head.to(device)
+        if torch.cuda.device_count() > 1:
+            print(f"CMA-ES: using {torch.cuda.device_count()} GPUs for pred_head")
+            self.pred_head = torch.nn.DataParallel(pred_head)
+        else:
+            self.pred_head = pred_head
         self.cfg = cfg
         self.device = device
 
@@ -63,37 +68,38 @@ class CMAESOptimizer:
         return full.reshape(self.soft_prompt.n_tokens, self.soft_prompt.token_dim)
 
     @torch.no_grad()
-    def _evaluate(self, z: np.ndarray, val_loader: DataLoader) -> float:
-        """Evaluate a candidate subspace vector; return val MAE."""
-        prompt_arr = self._subspace_to_prompt(z)
-        self.soft_prompt.set_from_numpy(prompt_arr.astype(np.float32))
+    def _cache_encoder(self, val_loader: DataLoader):
+        """Pre-compute encoder projections for all val batches — done once."""
+        cached_proj, cached_targets = [], []
+        for patches, targets in val_loader:
+            ts_proj = self.proj_head(self.encoder(patches.to(self.device))).unsqueeze(1)
+            cached_proj.append(ts_proj.cpu())
+            cached_targets.append(targets)
+        return cached_proj, cached_targets
+
+    @torch.no_grad()
+    def _evaluate(self, z: np.ndarray, cached_proj: list, cached_targets: list) -> float:
+        """Evaluate a candidate using pre-cached encoder projections."""
+        self.soft_prompt.set_from_numpy(self._subspace_to_prompt(z).astype(np.float32))
 
         total_mae = 0.0
-        n_batches = 0
-        for patches, targets in val_loader:
-            patches = patches.to(self.device)
+        for ts_proj, targets in zip(cached_proj, cached_targets):
+            ts_proj = ts_proj.to(self.device)
             targets = targets.to(self.device)
-            B = patches.size(0)
+            B = ts_proj.size(0)
+            inputs = torch.cat([self.soft_prompt(B), ts_proj], dim=1)
+            preds = self.pred_head(self.llm.get_hidden_state(inputs))
+            total_mae += (preds - targets).abs().mean().item()
 
-            ts_embed = self.encoder(patches)           # (B, 256)
-            ts_proj = self.proj_head(ts_embed)         # (B, 768)
-            ts_proj = ts_proj.unsqueeze(1)             # (B, 1, 768)
-
-            soft = self.soft_prompt(B)                 # (B, 32, 768)
-            inputs = torch.cat([soft, ts_proj], dim=1) # (B, 33, 768)
-
-            hidden = self.llm.get_hidden_state(inputs) # (B, 768)
-            preds = self.pred_head(hidden)              # (B, N)
-
-            mae = (preds - targets).abs().mean().item()
-            total_mae += mae
-            n_batches += 1
-
-        return total_mae / max(1, n_batches)
+        return total_mae / max(1, len(cached_proj))
 
     def optimize(self, val_loader: DataLoader, checkpoint_path: str) -> np.ndarray:
         """Run CMA-ES optimization. Returns best prompt array."""
         from pathlib import Path
+
+        print("Pre-caching encoder outputs (once)...")
+        cached_proj, cached_targets = self._cache_encoder(val_loader)
+        print(f"Cached {len(cached_proj)} batches.")
 
         x0 = np.zeros(self.subspace_dim, dtype=np.float32)
         opts = {
@@ -112,7 +118,7 @@ class CMAESOptimizer:
         generation = 0
         while not es.stop():
             solutions = es.ask()
-            fitnesses = [self._evaluate(z, val_loader) for z in solutions]
+            fitnesses = [self._evaluate(z, cached_proj, cached_targets) for z in solutions]
             es.tell(solutions, fitnesses)
 
             gen_best = min(fitnesses)
@@ -129,6 +135,8 @@ class CMAESOptimizer:
 
             if generation % 10 == 0:
                 print(f"Gen {generation:4d} | best_mae={best_loss:.6f} | sigma={es.sigma:.6f}")
+                np.save(checkpoint_path.replace(".npy", "_latest.npy"),
+                        self._subspace_to_prompt(best_z))
 
             if patience_counter >= self.patience:
                 print(f"CMA-ES early stop at generation {generation}")

@@ -83,9 +83,14 @@ def main(config_path: str) -> None:
         for p in m.parameters():
             p.requires_grad = False
 
-    pred_head = PredictionHead.from_config(cfg).to(device)
+    pred_head_raw = PredictionHead.from_config(cfg).to(device)
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs (DataParallel)")
+        pred_head = torch.nn.DataParallel(pred_head_raw)
+    else:
+        pred_head = pred_head_raw
     optimizer = optim.AdamW(
-        pred_head.parameters(),
+        pred_head_raw.parameters(),
         lr=cfg["pred_head_training"]["lr"],
         weight_decay=cfg["pred_head_training"]["weight_decay"],
     )
@@ -138,7 +143,7 @@ def main(config_path: str) -> None:
         if vl < best_val_loss:
             best_val_loss = vl
             patience_counter = 0
-            save_pred_head(pred_head, ckpt_path)
+            save_pred_head(pred_head_raw, ckpt_path)
         else:
             patience_counter += 1
             if patience_counter >= patience:

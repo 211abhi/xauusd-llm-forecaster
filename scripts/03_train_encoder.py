@@ -52,6 +52,12 @@ def main(config_path: str) -> None:
     processed_dir = Path(cfg["data"]["processed_dir"])
     splits_dir = Path(cfg["data"]["splits_dir"])
 
+    ckpt_path = Path(cfg["encoder"]["checkpoint_path"])
+    if ckpt_path.exists():
+        print(f"Encoder checkpoint found at {ckpt_path} — skipping training.")
+        print("Phase 2 complete (skipped).")
+        return
+
     print("Loading processed data...")
     df = pd.read_csv(processed_dir / "xau_with_regimes.csv", parse_dates=["datetime"])
     train_ratio = cfg["data"]["split_ratios"]["train"]
