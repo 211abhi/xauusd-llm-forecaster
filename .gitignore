@@ -3,13 +3,10 @@
 *.yml
 *.md
 *.txt
-!configs/base_config.yaml
 
 # ── Data (never commit raw/processed data) ────────────────────
 data/
-!data/raw/
 *.csv
-!data/raw/XAU_30m_data.csv
 *.parquet
 *.feather
 *.h5
@@ -19,7 +16,6 @@ data/
 
 # ── Checkpoints & Model Weights ───────────────────────────────
 checkpoints/
-!checkpoints/encoder/best_encoder.pt
 *.pt
 *.pth
 *.ckpt
