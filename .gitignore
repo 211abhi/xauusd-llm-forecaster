@@ -1,4 +1,53 @@
-baseconfig.yaml
-claude.md
-config.yaml
-.gitignore
+# ── Config & Docs ─────────────────────────────────────────────
+*.yaml
+*.yml
+*.md
+*.txt
+
+# ── Data (never commit raw/processed data) ────────────────────
+data/
+*.csv
+*.parquet
+*.feather
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+
+# ── Checkpoints & Model Weights ───────────────────────────────
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.npy
+*.npz
+
+# ── Logs ──────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── LLM Cache ─────────────────────────────────────────────────
+.cache/
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# ── Jupyter ───────────────────────────────────────────────────
+.ipynb_checkpoints/
+a.IPYNB
+
+# ── Env & Secrets ─────────────────────────────────────────────
+.env
+*.env.*
+
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
