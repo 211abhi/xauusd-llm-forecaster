@@ -97,10 +97,11 @@ cmaes:
   subspace_dim: 500           # BBTv2 trick: optimize in low-dim subspace
   popsize: 20
   sigma0: 0.1
-  maxiter: 300
-  early_stop_patience: 50     # generations without improvement
+  maxiter: 100
+  early_stop_patience: 30     # generations without improvement
   fitness_metric: "val_mae"   # minimize this
   eval_batch_size: 32
+  max_eval_batches: 32        # cap val batches per candidate for speed
 
 prediction_head:
   input_dim: 1024             # must match llm.hidden_dim

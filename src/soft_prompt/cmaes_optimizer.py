@@ -47,6 +47,7 @@ class CMAESOptimizer:
         self.maxiter = cc["maxiter"]
         self.patience = cc["early_stop_patience"]
         self.eval_batch_size = cc["eval_batch_size"]
+        self.max_eval_batches = cc.get("max_eval_batches", 32)
 
         # Fixed random projection matrix: subspace → full_dim
         rng = np.random.RandomState(42)
@@ -69,9 +70,11 @@ class CMAESOptimizer:
 
     @torch.no_grad()
     def _cache_encoder(self, val_loader: DataLoader):
-        """Pre-compute encoder projections for all val batches — done once."""
+        """Pre-compute encoder projections — capped at max_eval_batches for speed."""
         cached_proj, cached_targets = [], []
-        for patches, targets in val_loader:
+        for i, (patches, targets) in enumerate(val_loader):
+            if i >= self.max_eval_batches:
+                break
             ts_proj = self.proj_head(self.encoder(patches.to(self.device))).unsqueeze(1)
             cached_proj.append(ts_proj.cpu())
             cached_targets.append(targets)
