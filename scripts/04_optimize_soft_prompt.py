@@ -58,7 +58,7 @@ def main(config_path: str) -> None:
         torch.tensor(val_targets, dtype=torch.float32),
     )
     val_loader = DataLoader(val_dataset, batch_size=cfg["cmaes"]["eval_batch_size"],
-                            shuffle=False, num_workers=2)
+                            shuffle=False, num_workers=0)
 
     print("Loading frozen encoder...")
     encoder = TSEncoder.from_config(cfg)

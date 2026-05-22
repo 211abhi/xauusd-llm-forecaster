@@ -86,9 +86,9 @@ def main(config_path: str) -> None:
 
     tc = cfg["encoder_training"]
     train_loader = DataLoader(train_dataset, batch_size=tc["batch_size"], shuffle=True,
-                              num_workers=2, pin_memory=True)
+                              num_workers=0, pin_memory=False)
     val_loader   = DataLoader(val_dataset,   batch_size=tc["batch_size"], shuffle=False,
-                              num_workers=2, pin_memory=True)
+                              num_workers=0, pin_memory=False)
 
     print("Building encoder + projection head...")
     encoder   = TSEncoder.from_config(cfg)

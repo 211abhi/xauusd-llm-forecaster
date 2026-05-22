@@ -41,7 +41,7 @@ def make_loader(arr: np.ndarray, cfg: dict, stride: int) -> DataLoader:
         torch.tensor(targets, dtype=torch.float32),
     )
     bs = cfg["pred_head_training"]["batch_size"]
-    return DataLoader(dataset, batch_size=bs, shuffle=True, num_workers=2, pin_memory=True)
+    return DataLoader(dataset, batch_size=bs, shuffle=True, num_workers=0, pin_memory=False)
 
 
 def main(config_path: str) -> None:
