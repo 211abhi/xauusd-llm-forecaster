@@ -19,6 +19,7 @@ data/
 
 # ── Checkpoints & Model Weights ───────────────────────────────
 checkpoints/
+!checkpoints/encoder/best_encoder.pt
 *.pt
 *.pth
 *.ckpt
