@@ -69,9 +69,15 @@ def main(config_path: str) -> None:
 
     ckpt_path = cfg["prediction_head"]["checkpoint_path"]
     if Path(ckpt_path).exists():
-        print(f"Pred head checkpoint found at {ckpt_path} — skipping training.")
-        print("Phase 4 complete (skipped).")
-        return
+        state = torch.load(ckpt_path, map_location="cpu")
+        weights = [v for k, v in state["pred_head"].items() if "weight" in k]
+        saved_steps = weights[-1].shape[0] if weights else -1
+        if saved_steps == cfg["prediction_head"]["output_steps"]:
+            print(f"Pred head checkpoint found — skipping training.")
+            print("Phase 4 complete (skipped).")
+            return
+        print(f"output_steps mismatch (saved={saved_steps}, "
+              f"config={cfg['prediction_head']['output_steps']}) — retraining.")
 
     seed = cfg["project"]["seed"]
     torch.manual_seed(seed)

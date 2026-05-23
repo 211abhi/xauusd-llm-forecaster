@@ -106,7 +106,7 @@ cmaes:
 prediction_head:
   input_dim: 1024             # must match llm.hidden_dim
   hidden_dim: 256
-  output_steps: 8             # predict 8 × 30min = 4 hours ahead
+  output_steps: 16            # predict N × 30min ahead (set interactively in notebook)
   dropout: 0.1
   checkpoint_path: "checkpoints/pred_head/best_pred_head.pt"
 
