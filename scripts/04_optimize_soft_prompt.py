@@ -25,6 +25,12 @@ def main(config_path: str) -> None:
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
+    ckpt_path = cfg["soft_prompt"]["checkpoint_path"]
+    if Path(ckpt_path).exists():
+        print(f"Soft prompt checkpoint found at {ckpt_path} — skipping optimization.")
+        print("Phase 3 complete (skipped).")
+        return
+
     seed = cfg["project"]["seed"]
     torch.manual_seed(seed)
     np.random.seed(seed)
