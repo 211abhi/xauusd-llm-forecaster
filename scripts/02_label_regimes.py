@@ -19,7 +19,7 @@ def main(config_path: str) -> None:
     np.random.seed(cfg["project"]["seed"])
 
     processed_dir = Path(cfg["data"]["processed_dir"])
-    df = pd.read_csv(processed_dir / "xau_processed.csv", parse_dates=["datetime"])
+    df = pd.read_csv(processed_dir / "ett_processed.csv", parse_dates=["datetime"])
     print(f"Loaded {len(df)} rows from processed data")
 
     print("Labeling market regimes...")
@@ -29,8 +29,8 @@ def main(config_path: str) -> None:
     for regime, cnt in sorted(counts.items()):
         print(f"    {regime:15s}: {cnt:6d} ({cnt / len(df) * 100:.1f}%)")
 
-    df.to_csv(processed_dir / "xau_with_regimes.csv", index=False)
-    print(f"Saved → {processed_dir / 'xau_with_regimes.csv'}")
+    df.to_csv(processed_dir / "ett_with_regimes.csv", index=False)
+    print(f"Saved → {processed_dir / 'ett_with_regimes.csv'}")
 
     # Assign window-level regimes for train/val splits
     train_ratio = cfg["data"]["split_ratios"]["train"]

@@ -11,7 +11,7 @@ from pathlib import Path
 from src.utils.data_loader import (
     load_raw_ohlcv, forward_fill_gaps, add_derived_features, add_indicators,
     compute_train_norm_stats, apply_minmax_norm, chronological_split,
-    save_split_indices, get_feature_columns,
+    save_split_indices, get_feature_columns, download_if_missing,
 )
 
 
@@ -20,6 +20,8 @@ def main(config_path: str) -> None:
         cfg = yaml.safe_load(f)
 
     np.random.seed(cfg["project"]["seed"])
+
+    download_if_missing(cfg["data"]["raw_path"], cfg["data"]["source_url"])
 
     print("Loading raw data...")
     df = load_raw_ohlcv(cfg["data"]["raw_path"])
@@ -48,6 +50,12 @@ def main(config_path: str) -> None:
     val_ratio = cfg["data"]["split_ratios"]["val"]
     train_end = int(len(df) * train_ratio)
 
+    # Regime labeling (phase 1b) needs these on their original scale — snapshot
+    # before normalization overwrites them, since RSI/ATR thresholds and the
+    # close-vs-EMA comparisons are only meaningful in raw units.
+    for col in ["close", "high", "low", "volume", "atr", "rsi"]:
+        df[f"{col}_raw"] = df[col]
+
     print("Computing normalization stats on train split only...")
     norm_stats = compute_train_norm_stats(df, feature_cols, train_end)
 
@@ -56,8 +64,8 @@ def main(config_path: str) -> None:
 
     processed_dir = Path(cfg["data"]["processed_dir"])
     processed_dir.mkdir(parents=True, exist_ok=True)
-    df_norm.to_csv(processed_dir / "xau_processed.csv", index=False)
-    print(f"Saved processed data → {processed_dir / 'xau_processed.csv'}")
+    df_norm.to_csv(processed_dir / "ett_processed.csv", index=False)
+    print(f"Saved processed data → {processed_dir / 'ett_processed.csv'}")
 
     # Save norm stats
     import json

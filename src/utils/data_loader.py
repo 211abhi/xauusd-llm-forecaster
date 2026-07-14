@@ -1,7 +1,8 @@
-"""OHLCV data loading, feature engineering, normalization, and windowing."""
+"""ETT data loading, feature engineering, normalization, and windowing."""
 
 from __future__ import annotations
 
+import urllib.request
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -10,16 +11,37 @@ from typing import Dict, List, Tuple
 import ta
 
 
+def download_if_missing(path: str, url: str) -> None:
+    """Download the raw dataset CSV from `url` if `path` doesn't exist yet."""
+    p = Path(path)
+    if p.exists():
+        return
+    p.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Downloading dataset from {url} ...")
+    urllib.request.urlretrieve(url, p)
+
+
 def load_raw_ohlcv(path: str) -> pd.DataFrame:
-    """Load raw CSV, parse datetime, sort, and drop duplicates."""
-    df = pd.read_csv(path, sep=";", parse_dates=["Date"])
-    df.columns = [c.lower() for c in df.columns]
+    """Load raw ETT CSV and derive a synthetic OHLCV frame from its columns.
+
+    ETT rows are point-in-time sensor readings (HUFL/HULL/MUFL/MULL/LUFL/LULL load
+    features + OT oil temperature) rather than aggregated candles. `close` is OT,
+    `open` is the prior reading, `high`/`low` bound the two, and `volume` is HUFL
+    used as a proxy for transformer load intensity.
+    """
+    df = pd.read_csv(path, parse_dates=["date"])
     df = df.rename(columns={"date": "datetime"})
     df = df.sort_values("datetime").drop_duplicates(subset="datetime").reset_index(drop=True)
+
+    df["close"] = df["OT"]
+    df["open"] = df["close"].shift(1).fillna(df["close"])
+    df["high"] = df[["open", "close"]].max(axis=1)
+    df["low"] = df[["open", "close"]].min(axis=1)
+    df["volume"] = df["HUFL"]
     return df
 
 
-def forward_fill_gaps(df: pd.DataFrame, freq: str = "30min") -> pd.DataFrame:
+def forward_fill_gaps(df: pd.DataFrame, freq: str = "1h") -> pd.DataFrame:
     """Fill missing candles (weekends/holidays) via forward-fill."""
     full_idx = pd.date_range(df["datetime"].iloc[0], df["datetime"].iloc[-1], freq=freq)
     df = df.set_index("datetime").reindex(full_idx, method="ffill").reset_index()
@@ -28,10 +50,15 @@ def forward_fill_gaps(df: pd.DataFrame, freq: str = "30min") -> pd.DataFrame:
 
 
 def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add returns, log_returns, hl_range, body_ratio."""
+    """Add returns, log_returns, hl_range, body_ratio.
+
+    Uses absolute deltas rather than pct_change/log-ratio: the ETT target (oil
+    temperature) crosses zero, where percentage and log returns are undefined.
+    """
     df = df.copy()
-    df["returns"] = df["close"].pct_change().fillna(0.0)
-    df["log_returns"] = np.log(df["close"] / df["close"].shift(1)).fillna(0.0)
+    delta = df["close"].diff().fillna(0.0)
+    df["returns"] = delta
+    df["log_returns"] = np.sign(delta) * np.log1p(delta.abs())
     df["hl_range"] = df["high"] - df["low"]
     body = (df["close"] - df["open"]).abs()
     df["body_ratio"] = (body / df["hl_range"].replace(0, np.nan)).fillna(0.0)

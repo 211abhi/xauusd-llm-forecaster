@@ -8,11 +8,12 @@ project:
   checkpoint_dir: "checkpoints/"
 
 data:
-  raw_path: "data/raw/XAU_30m_data.csv"
+  raw_path: "data/raw/ETTh1.csv"
+  source_url: "https://raw.githubusercontent.com/zhouhaoyi/ETDataset/main/ETT-small/ETTh1.csv"
   processed_dir: "data/processed/"
   splits_dir: "data/splits/"
   datetime_col: "datetime"
-  feature_cols: ["open", "high", "low", "close", "volume"]
+  feature_cols: ["open", "high", "low", "close", "volume"]  # synthetic OHLCV derived from ETT (close=OT, volume=HUFL)
   derived_features: ["returns", "log_returns", "hl_range", "body_ratio"]
   indicators:
     atr_period: 14
@@ -38,7 +39,7 @@ regime_labeling:
   volume_spike_mult: 1.5
 
 tokenizer:
-  window_size: 96         # input context (48 hours at 30m)
+  window_size: 96         # input context (96 hours / 4 days at 1h — ETTh1 is hourly)
   patch_size: 16          # steps per patch
   n_patches: 6            # window_size // patch_size
   n_features: 9           # OHLCV(5) + returns + log_returns + ATR + RSI
@@ -106,7 +107,7 @@ cmaes:
 prediction_head:
   input_dim: 1024             # must match llm.hidden_dim
   hidden_dim: 256
-  output_steps: 16            # predict N × 30min ahead (set interactively in notebook)
+  output_steps: 16            # predict N × 1h ahead (set interactively in notebook)
   dropout: 0.1
   checkpoint_path: "checkpoints/pred_head/best_pred_head.pt"
 

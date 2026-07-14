@@ -1,4 +1,4 @@
-"""Rule-based market regime labeler for XAUUSD 30m data."""
+"""Rule-based regime labeler for synthetic-OHLCV time-series data."""
 
 from __future__ import annotations
 
@@ -15,6 +15,10 @@ def label_regime(row: pd.Series, atr_mean: float, cfg: dict) -> str:
     Assign a single regime label to one row using deterministic rules.
 
     Priority order: BREAKOUT > VOLATILE > TRENDING_UP > TRENDING_DOWN > RANGING
+
+    Reads the `*_raw` (pre-normalization) columns: RSI/ATR thresholds and the
+    close-vs-EMA comparisons are only meaningful on the original scale, and
+    `close`/`atr`/`rsi` get min-max normalized to [0, 1] elsewhere in the pipeline.
     """
     rc = cfg["regime_labeling"]
 
@@ -22,22 +26,22 @@ def label_regime(row: pd.Series, atr_mean: float, cfg: dict) -> str:
     if is_breakout:
         return "BREAKOUT"
 
-    if row["atr"] > rc["atr_spike_mult"] * atr_mean and \
-       row["hl_range"] > rc["hl_range_spike_mult"] * row["atr"]:
+    if row["atr_raw"] > rc["atr_spike_mult"] * atr_mean and \
+       row["hl_range"] > rc["hl_range_spike_mult"] * row["atr_raw"]:
         return "VOLATILE"
 
-    if row["close"] > row["ema20"] > row["ema50"] and row["rsi"] > rc["rsi_high"]:
+    if row["close_raw"] > row["ema20"] > row["ema50"] and row["rsi_raw"] > rc["rsi_high"]:
         return "TRENDING_UP"
 
-    if row["close"] < row["ema20"] < row["ema50"] and row["rsi"] < rc["rsi_low"]:
+    if row["close_raw"] < row["ema20"] < row["ema50"] and row["rsi_raw"] < rc["rsi_low"]:
         return "TRENDING_DOWN"
 
-    if abs(row["close"] - row["ema20"]) < rc["ranging_atr_mult"] * row["atr"] and \
-       rc["rsi_mid_low"] < row["rsi"] < rc["rsi_mid_high"]:
+    if abs(row["close_raw"] - row["ema20"]) < rc["ranging_atr_mult"] * row["atr_raw"] and \
+       rc["rsi_mid_low"] < row["rsi_raw"] < rc["rsi_mid_high"]:
         return "RANGING"
 
     # Default fallback based on RSI midpoint
-    if row["rsi"] >= 50:
+    if row["rsi_raw"] >= 50:
         return "TRENDING_UP"
     return "TRENDING_DOWN"
 
@@ -48,13 +52,13 @@ def detect_breakouts(df: pd.DataFrame, lookback: int = 20,
     Detect breakout candles: close crosses recent high/low with volume spike.
     Returns boolean Series.
     """
-    recent_high = df["high"].rolling(lookback).max().shift(1)
-    recent_low = df["low"].rolling(lookback).min().shift(1)
-    vol_mean = df["volume"].rolling(lookback).mean().shift(1)
+    recent_high = df["high_raw"].rolling(lookback).max().shift(1)
+    recent_low = df["low_raw"].rolling(lookback).min().shift(1)
+    vol_mean = df["volume_raw"].rolling(lookback).mean().shift(1)
 
-    breaks_up = (df["close"] > recent_high)
-    breaks_down = (df["close"] < recent_low)
-    vol_spike = (df["volume"] > volume_spike_mult * vol_mean)
+    breaks_up = (df["close_raw"] > recent_high)
+    breaks_down = (df["close_raw"] < recent_low)
+    vol_spike = (df["volume_raw"] > volume_spike_mult * vol_mean)
 
     return ((breaks_up | breaks_down) & vol_spike).fillna(False)
 
@@ -63,11 +67,12 @@ def label_dataframe(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     """
     Add 'regime' column to a fully-featured DataFrame.
 
-    Expects columns: close, ema20, ema50, rsi, atr, hl_range, volume.
+    Expects columns: close_raw, ema20, ema50, rsi_raw, atr_raw, hl_range,
+    volume_raw, high_raw, low_raw.
     """
     df = df.copy()
     rc = cfg["regime_labeling"]
-    atr_mean = float(df["atr"].mean())
+    atr_mean = float(df["atr_raw"].mean())
     df["breakout"] = detect_breakouts(
         df,
         lookback=rc["breakout_lookback"],

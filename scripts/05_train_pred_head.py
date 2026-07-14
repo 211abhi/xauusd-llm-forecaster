@@ -85,7 +85,7 @@ def main(config_path: str) -> None:
     device = torch.device(cfg["project"]["device"])
 
     processed_dir = Path(cfg["data"]["processed_dir"])
-    df = pd.read_csv(processed_dir / "xau_with_regimes.csv", parse_dates=["datetime"])
+    df = pd.read_csv(processed_dir / "ett_with_regimes.csv", parse_dates=["datetime"])
     feature_cols = get_feature_columns(cfg)
 
     train_ratio = cfg["data"]["split_ratios"]["train"]

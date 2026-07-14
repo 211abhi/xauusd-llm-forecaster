@@ -16,7 +16,7 @@ from src.utils.checkpoint import load_all
 
 
 class Forecaster:
-    """End-to-end inference pipeline for XAUUSD price forecasting."""
+    """End-to-end inference pipeline for time-series forecasting."""
 
     def __init__(self, encoder: TSEncoder, proj_head: ProjectionHead, llm: FrozenLLM,
                  soft_prompt: SoftPrompt, pred_head: PredictionHead,
