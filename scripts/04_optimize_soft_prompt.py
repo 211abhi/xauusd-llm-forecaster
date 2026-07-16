@@ -85,8 +85,13 @@ def main(config_path: str, force: bool = False) -> None:
     ckpt_path = cfg["soft_prompt"]["checkpoint_path"]
     Path(ckpt_path).parent.mkdir(parents=True, exist_ok=True)
 
+    init_prompt = None
+    if force and Path(ckpt_path).exists():
+        print(f"Warm-starting from existing checkpoint at {ckpt_path} (continuing search, not from scratch)...")
+        init_prompt = np.load(ckpt_path)
+
     print("Starting CMA-ES optimization...")
-    best_prompt = optimizer.optimize(val_loader, ckpt_path)
+    best_prompt = optimizer.optimize(val_loader, ckpt_path, init_prompt=init_prompt)
     print(f"Optimization complete. Best prompt saved → {ckpt_path}")
     print("Phase 3 complete.")
 

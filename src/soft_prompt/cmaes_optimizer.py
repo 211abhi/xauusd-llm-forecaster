@@ -56,6 +56,10 @@ class CMAESOptimizer:
         norms = np.linalg.norm(self.proj_matrix, axis=0, keepdims=True).clip(min=1e-9)
         self.proj_matrix /= norms
 
+        # Additive base for warm-starting (see `optimize`'s `init_prompt` arg):
+        # z=0 always maps to `base`, so this defaults to a true cold start.
+        self.base = np.zeros(self.full_dim, dtype=np.float32)
+
         for m in [self.encoder, self.pred_head, self.proj_head]:
             for p in m.parameters():
                 p.requires_grad = False
@@ -64,8 +68,12 @@ class CMAESOptimizer:
         self.proj_head.eval()
 
     def _subspace_to_prompt(self, z: np.ndarray) -> np.ndarray:
-        """Map subspace vector (subspace_dim,) → prompt array (n_tokens, token_dim)."""
-        full = z @ self.proj_matrix                        # (full_dim,)
+        """Map subspace vector (subspace_dim,) → prompt array (n_tokens, token_dim).
+
+        `z=0` always maps to `self.base` (zeros for a cold start, or a warm-start
+        checkpoint) — CMA-ES searches additive corrections around that base.
+        """
+        full = self.base + z @ self.proj_matrix             # (full_dim,)
         return full.reshape(self.soft_prompt.n_tokens, self.soft_prompt.token_dim)
 
     @torch.no_grad()
@@ -96,14 +104,26 @@ class CMAESOptimizer:
 
         return total_mae / max(1, len(cached_proj))
 
-    def optimize(self, val_loader: DataLoader, checkpoint_path: str) -> np.ndarray:
-        """Run CMA-ES optimization. Returns best prompt array."""
+    def optimize(self, val_loader: DataLoader, checkpoint_path: str,
+                 init_prompt: Optional[np.ndarray] = None) -> np.ndarray:
+        """Run CMA-ES optimization. Returns best prompt array.
+
+        `init_prompt`, if given, warm-starts the search: it becomes the additive
+        base (see `_subspace_to_prompt`), so `z=0` reproduces it exactly, and
+        CMA-ES searches subspace corrections around it instead of around zero.
+        (A naive "project the existing prompt into the subspace" approach was
+        tried and discarded — `subspace_dim` (500) is too small relative to the
+        full prompt (n_tokens * token_dim, e.g. 32*1024=32768) to reconstruct an
+        arbitrary point that way; the additive-base approach is exact instead.)
+        """
         from pathlib import Path
 
         print("Pre-caching encoder outputs (once)...")
         cached_proj, cached_targets = self._cache_encoder(val_loader)
         print(f"Cached {len(cached_proj)} batches.")
 
+        if init_prompt is not None:
+            self.base = init_prompt.astype(np.float32).reshape(self.full_dim)
         x0 = np.zeros(self.subspace_dim, dtype=np.float32)
         opts = {
             "popsize": self.popsize,
@@ -114,8 +134,13 @@ class CMAESOptimizer:
         }
         es = cma.CMAEvolutionStrategy(x0, self.sigma0, opts)
 
-        best_loss = float("inf")
+        # Seed best_loss/best_z with x0 itself (CMA-ES's ask/tell loop only
+        # evaluates sampled offspring, never the mean directly) — otherwise a
+        # warm-started checkpoint could get discarded before any offspring beats it.
+        best_loss = self._evaluate(x0, cached_proj, cached_targets)
         best_z = x0.copy()
+        if init_prompt is not None:
+            print(f"Warm-start starting point MAE: {best_loss:.6f}")
         patience_counter = 0
 
         generation = 0

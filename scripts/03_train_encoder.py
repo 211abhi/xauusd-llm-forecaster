@@ -18,6 +18,7 @@ from src.alignment.text_encoder import TextEncoder
 from src.tokenizer.patch_tokenizer import PatchTokenizer, batch_to_patches
 from src.utils.data_loader import get_feature_columns
 from src.utils.regime_templates import REGIME_TEMPLATES
+from src.utils.checkpoint import load_encoder
 
 
 def load_split_patches(df: pd.DataFrame, regimes: pd.Series, cfg: dict,
@@ -102,6 +103,9 @@ def main(config_path: str, force: bool = False) -> None:
         input_dim=cfg["encoder"]["output_dim"],
         output_dim=cfg["alignment"]["projection_dim"],
     )
+    if force and ckpt_path.exists():
+        print(f"Warm-starting from existing checkpoint at {ckpt_path} (continuing training, not from scratch)...")
+        load_encoder(encoder, proj_head, str(ckpt_path), device)
     loss_fn = InfoNCELoss(temperature=cfg["alignment"]["temperature"])
 
     trainer = EncoderTrainer(encoder, proj_head, loss_fn, cfg, device)

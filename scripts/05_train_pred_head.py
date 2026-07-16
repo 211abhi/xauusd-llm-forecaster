@@ -19,7 +19,7 @@ from src.soft_prompt.soft_prompt import SoftPrompt
 from src.prediction.pred_head import PredictionHead
 from src.tokenizer.patch_tokenizer import batch_to_patches
 from src.utils.data_loader import get_feature_columns, build_windows, build_targets
-from src.utils.checkpoint import load_encoder, save_pred_head
+from src.utils.checkpoint import load_encoder, save_pred_head, load_pred_head
 
 
 def make_patch_loader(arr: np.ndarray, cfg: dict, stride: int) -> DataLoader:
@@ -68,16 +68,21 @@ def main(config_path: str, force: bool = False) -> None:
         cfg = yaml.safe_load(f)
 
     ckpt_path = cfg["prediction_head"]["checkpoint_path"]
-    if Path(ckpt_path).exists() and not force:
+    ckpt_exists = Path(ckpt_path).exists()
+    saved_steps = None
+    if ckpt_exists:
         state = torch.load(ckpt_path, map_location="cpu")
         weights = [v for k, v in state["pred_head"].items() if "weight" in k]
         saved_steps = weights[-1].shape[0] if weights else -1
-        if saved_steps == cfg["prediction_head"]["output_steps"]:
+        if saved_steps == cfg["prediction_head"]["output_steps"] and not force:
             print(f"Pred head checkpoint found — skipping training.")
             print("Phase 4 complete (skipped).")
             return
-        print(f"output_steps mismatch (saved={saved_steps}, "
-              f"config={cfg['prediction_head']['output_steps']}) — retraining.")
+        if force:
+            print(f"Force retraining (saved output_steps={saved_steps}, config={cfg['prediction_head']['output_steps']}).")
+        else:
+            print(f"output_steps mismatch (saved={saved_steps}, "
+                  f"config={cfg['prediction_head']['output_steps']}) — retraining.")
 
     seed = cfg["project"]["seed"]
     torch.manual_seed(seed)
@@ -119,6 +124,13 @@ def main(config_path: str, force: bool = False) -> None:
     print(f"Cached: {len(train_loader)} train batches, {len(val_loader)} val batches")
 
     pred_head_raw = PredictionHead.from_config(cfg).to(device)
+    if force and ckpt_exists:
+        if saved_steps == cfg["prediction_head"]["output_steps"]:
+            print(f"Warm-starting from existing checkpoint at {ckpt_path} (continuing training, not from scratch)...")
+            load_pred_head(pred_head_raw, ckpt_path, device)
+        else:
+            print(f"Cannot warm-start — output_steps changed (saved={saved_steps}, "
+                  f"config={cfg['prediction_head']['output_steps']}); training from scratch.")
     if torch.cuda.device_count() > 1:
         print(f"Using {torch.cuda.device_count()} GPUs (DataParallel)")
         pred_head = torch.nn.DataParallel(pred_head_raw)
