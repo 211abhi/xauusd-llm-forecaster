@@ -28,7 +28,7 @@ def main(config_path: str) -> None:
     print(f"  {len(df)} rows loaded, date range: {df['datetime'].iloc[0]} → {df['datetime'].iloc[-1]}")
 
     print("Forward-filling gaps...")
-    df = forward_fill_gaps(df)
+    df = forward_fill_gaps(df, freq=cfg["data"].get("freq", "1h"))
     print(f"  {len(df)} rows after gap fill")
 
     print("Adding derived features...")

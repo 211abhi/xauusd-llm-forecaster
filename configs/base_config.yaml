@@ -4,14 +4,15 @@ project:
   name: "xauusd-llm-forecaster"
   seed: 42
   device: "cuda"          # "cuda" or "cpu"
-  log_dir: "logs/"
+  log_dir: "logs/ETTh1/"  # per-dataset-variant subfolder — see notebook's DATASET_VARIANTS
   checkpoint_dir: "checkpoints/"
 
 data:
   raw_path: "data/raw/ETTh1.csv"
   source_url: "https://raw.githubusercontent.com/zhouhaoyi/ETDataset/main/ETT-small/ETTh1.csv"
-  processed_dir: "data/processed/"
-  splits_dir: "data/splits/"
+  freq: "1h"              # "1h" for ETTh1/ETTh2, "15min" for ETTm1/ETTm2
+  processed_dir: "data/processed/ETTh1/"
+  splits_dir: "data/splits/ETTh1/"
   datetime_col: "datetime"
   feature_cols: ["open", "high", "low", "close", "volume"]  # synthetic OHLCV derived from ETT (close=OT, volume=HUFL)
   derived_features: ["returns", "log_returns", "hl_range", "body_ratio"]
@@ -55,7 +56,7 @@ encoder:
   dropout: 0.1
   max_seq_len: 7          # n_patches + 1 (CLS token)
   output_dim: 256         # CLS token output dimension
-  checkpoint_path: "checkpoints/encoder/best_encoder.pt"
+  checkpoint_path: "checkpoints/encoder/best_encoder.pt"   # NEVER variant-scoped: trained once, shared/frozen across every dataset variant
 
 alignment:
   temperature: 0.07       # InfoNCE temperature
@@ -92,7 +93,7 @@ soft_prompt:
   n_tokens: 32
   token_dim: 1024             # must match llm.hidden_dim
   init_std: 0.01
-  checkpoint_path: "checkpoints/soft_prompt/best_soft_prompt.npy"
+  checkpoint_path: "checkpoints/soft_prompt/ETTh1/best_soft_prompt.npy"
 
 cmaes:
   subspace_dim: 500           # BBTv2 trick: optimize in low-dim subspace
@@ -109,7 +110,7 @@ prediction_head:
   hidden_dim: 256
   output_steps: 16            # predict N × 1h ahead (set interactively in notebook)
   dropout: 0.1
-  checkpoint_path: "checkpoints/pred_head/best_pred_head.pt"
+  checkpoint_path: "checkpoints/pred_head/ETTh1/best_pred_head.pt"
 
 pred_head_training:
   epochs: 30

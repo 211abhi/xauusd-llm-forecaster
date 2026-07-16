@@ -22,7 +22,9 @@ data/
 *.npz
 !checkpoints/encoder/best_encoder.pt
 !checkpoints/soft_prompt/best_soft_prompt.npy
+!checkpoints/soft_prompt/*/best_soft_prompt.npy
 !checkpoints/pred_head/best_pred_head.pt
+!checkpoints/pred_head/*/best_pred_head.pt
 
 # ── Logs ──────────────────────────────────────────────────────
 logs/
