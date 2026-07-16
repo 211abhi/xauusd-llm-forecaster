@@ -1,6 +1,10 @@
 # ── Config & Docs ─────────────────────────────────────────────
+# base_config.yaml and configs/{VARIANT}_config.yaml are regenerated every
+# session by the notebook (device, output_steps, variant paths) — never track
+# the runtime file, only the committed example.
 *.yaml
 *.yml
+!configs/base_config.example.yaml
 *.md
 *.txt
 
