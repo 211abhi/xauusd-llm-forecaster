@@ -63,12 +63,12 @@ def cache_hidden_states(encoder, proj_head, llm, soft_prompt,
     return DataLoader(dataset, batch_size=256, shuffle=True, num_workers=0)
 
 
-def main(config_path: str) -> None:
+def main(config_path: str, force: bool = False) -> None:
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
     ckpt_path = cfg["prediction_head"]["checkpoint_path"]
-    if Path(ckpt_path).exists():
+    if Path(ckpt_path).exists() and not force:
         state = torch.load(ckpt_path, map_location="cpu")
         weights = [v for k, v in state["pred_head"].items() if "weight" in k]
         saved_steps = weights[-1].shape[0] if weights else -1
@@ -177,5 +177,6 @@ def main(config_path: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/base_config.yaml")
+    parser.add_argument("--force", action="store_true", help="Retrain even if a matching checkpoint already exists.")
     args = parser.parse_args()
-    main(args.config)
+    main(args.config, force=args.force)

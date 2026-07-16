@@ -40,7 +40,7 @@ def load_split_patches(df: pd.DataFrame, regimes: pd.Series, cfg: dict,
     return patches, list(regime_list)
 
 
-def main(config_path: str) -> None:
+def main(config_path: str, force: bool = False) -> None:
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
@@ -53,7 +53,7 @@ def main(config_path: str) -> None:
     splits_dir = Path(cfg["data"]["splits_dir"])
 
     ckpt_path = Path(cfg["encoder"]["checkpoint_path"])
-    if ckpt_path.exists():
+    if ckpt_path.exists() and not force:
         print(f"Encoder checkpoint found at {ckpt_path} — skipping training.")
         print("Phase 2 complete (skipped).")
         return
@@ -115,5 +115,6 @@ def main(config_path: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/base_config.yaml")
+    parser.add_argument("--force", action="store_true", help="Retrain even if a checkpoint already exists.")
     args = parser.parse_args()
-    main(args.config)
+    main(args.config, force=args.force)

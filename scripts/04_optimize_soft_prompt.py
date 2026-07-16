@@ -21,12 +21,12 @@ from src.utils.data_loader import get_feature_columns, build_windows, build_targ
 from src.utils.checkpoint import load_encoder, save_pred_head
 
 
-def main(config_path: str) -> None:
+def main(config_path: str, force: bool = False) -> None:
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
     ckpt_path = cfg["soft_prompt"]["checkpoint_path"]
-    if Path(ckpt_path).exists():
+    if Path(ckpt_path).exists() and not force:
         print(f"Soft prompt checkpoint found at {ckpt_path} — skipping optimization.")
         print("Phase 3 complete (skipped).")
         return
@@ -94,5 +94,6 @@ def main(config_path: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/base_config.yaml")
+    parser.add_argument("--force", action="store_true", help="Re-optimize even if a checkpoint already exists.")
     args = parser.parse_args()
-    main(args.config)
+    main(args.config, force=args.force)
